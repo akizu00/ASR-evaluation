@@ -17,7 +17,7 @@ def normalize_text(text):
     text = re.sub(r'([\u4e00-\u9fff])', r' \1 ', text)
     return ' '.join(text.split())
 
-# Load ground truth from text perconvo
+# Load ground truth from text perconvo file 
 def load_ground_truth_dict(groundtruth_file):
     groundtruth_lines = dict()
     with open(groundtruth_file, "r", encoding="utf-8") as f:
@@ -27,7 +27,7 @@ def load_ground_truth_dict(groundtruth_file):
                 groundtruth_lines[audio_id] = normalize_text(content)
     return groundtruth_lines
 
-# Whisper transcription in 30s chunks
+# Whisper transcription for each 30s chunks
 def transcribe_with_whisper(audio_path, model, chunk_length_ms=30000):
     audio = AudioSegment.from_wav(audio_path)
     chunks = [audio[i:i+chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
@@ -43,7 +43,7 @@ def transcribe_with_whisper(audio_path, model, chunk_length_ms=30000):
 
     return normalize_text(full_transcript)
 
-# Evaluate all files in folder
+# Evaluate all audio files in folder
 def evaluate_audio_folder(audio_dir, ground_truth_path, model_size="large-v3"):
     model = whisper.load_model(model_size)
     gt_dict = load_ground_truth_dict(ground_truth_path)
@@ -71,10 +71,10 @@ def evaluate_audio_folder(audio_dir, ground_truth_path, model_size="large-v3"):
                     "hypothesis": hypothesis
                 })
 
-    # Save results
+    # Save the evaluation results as excel file 
     df = pd.DataFrame(results)
     df.to_csv("evaluation_results.csv", index=False)
     print("\nSaved results to evaluation_results.csv")
 
-# Run the full batch evaluation
+# Run evaluation for all audio
 evaluate_audio_folder(audio_dir, ref_file, model_size="base")
