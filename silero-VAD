@@ -1,1 +1,77 @@
+from silero_vad import load_silero_vad, read_audio, get_speech_timestamps
+from pydub import AudioSegment
+import os
 
+# --- VAD + Parameters ---
+model = load_silero_vad()
+wav = read_audio('audio_CH_EN_1.wav')
+
+# Detect speech segments
+speech_timestamps = get_speech_timestamps(
+    wav,
+    model,
+    threshold=0.40,
+    min_speech_duration_ms=50000,
+    min_silence_duration_ms=6000,
+    window_size_samples=512,
+    return_seconds=True
+)
+
+# Merge short or close segments
+def merge_short_segments(timestamps, min_duration=10.0, max_gap=1.0):
+    merged = []
+    for seg in timestamps:
+        start, end = seg['start'], seg['end']
+        duration = end - start
+
+        if not merged:
+            merged.append({'start': start, 'end': end})
+        else:
+            last = merged[-1]
+            gap = start - last['end']
+            if gap <= max_gap or duration < min_duration:
+                last['end'] = max(last['end'], end)
+            else:
+                merged.append({'start': start, 'end': end})
+    return merged
+
+speech_timestamps = merge_short_segments(speech_timestamps)
+
+# Convert to milliseconds
+segments = [(int(seg['start'] * 1000), int(seg['end'] * 1000)) for seg in speech_timestamps]
+
+# Load full audio
+audio = AudioSegment.from_wav("audio_CH_EN_1.wav")
+
+# Output folder
+output_dir = "wav_cut1"
+os.makedirs(output_dir, exist_ok=True)
+
+# Trimming settings
+MAX_SEGMENT_LENGTH_MS = 120 * 1000  # 120 seconds
+PADDING_MS = 1000
+segment_index = 1
+
+# Process and export audio segments
+for start_ms, end_ms in segments:
+    padded_start = max(0, start_ms - PADDING_MS)
+    padded_end = min(len(audio), end_ms + PADDING_MS)
+    segment_duration = padded_end - padded_start
+
+    if segment_duration <= MAX_SEGMENT_LENGTH_MS:
+        clip = audio[padded_start:padded_end]
+        output_path = os.path.join(output_dir, f"audio_CH_EN_1_{segment_index:03d}.wav")
+        clip.export(output_path, format="wav")
+        print(f"Saved: {output_path}")
+        segment_index += 1
+    else:
+        # Split long segment
+        num_chunks = (segment_duration // MAX_SEGMENT_LENGTH_MS) + 1
+        for j in range(int(num_chunks)):
+            split_start = padded_start + j * MAX_SEGMENT_LENGTH_MS
+            split_end = min(split_start + MAX_SEGMENT_LENGTH_MS, padded_end)
+            sub_clip = audio[split_start:split_end]
+            output_path = os.path.join(output_dir, f"audio_CH_EN_1_{segment_index:03d}.wav")
+            sub_clip.export(output_path, format="wav")
+            print(f"Split Saved: {output_path}")
+            segment_index += 1V
